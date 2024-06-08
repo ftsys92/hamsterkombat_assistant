@@ -220,6 +220,9 @@ function formatMessage(data) {
 }
 
 export const runFarm = async (ctx) => {
+    console.clear();
+    console.log(dayjs().format('MM/DD/YYYY HH:mm'));
+
     await auth();
     ctx.sendMessage('Auth success.')
 
@@ -231,35 +234,28 @@ export const runFarm = async (ctx) => {
 
     ctx.sendMessage('Sync success');
 
-    while (true) {
-        console.clear();
-        console.log(dayjs().format('MM/DD/YYYY HH:mm'));
+    await claimMorse(ctx);
+    await checkDailyReward(ctx);
 
-        await claimMorse(ctx);
-        await checkDailyReward(ctx);
+    data = await tap(data[`tapsRecoverPer${minutes}Minute`], data.availableTaps);
 
+    const boost = await boostsForBuy();
+
+    if (boost && boost.cooldownSeconds <= 0 &&
+        (
+            data.boost.level < boost.maxLevel ||
+            (data.boost.level === boost.maxLevel && 1 === boost.level)
+        )
+    ) {
+        await buyBust(ctx);
         data = await tap(data[`tapsRecoverPer${minutes}Minute`], data.availableTaps);
-
-        const boost = await boostsForBuy();
-
-        if (boost && boost.cooldownSeconds <= 0 &&
-            (
-                data.boost.level < boost.maxLevel ||
-                (data.boost.level === boost.maxLevel && 1 === boost.level)
-            )
-        ) {
-            await buyBust(ctx);
-            data = await tap(data[`tapsRecoverPer${minutes}Minute`], data.availableTaps);
-        }
-
-        lastEarn = data.balanceCoins - lastBalance;
-        lastBalance = data.balanceCoins;
-
-        ctx.replyWithMarkdown(formatMessage({
-            lastEarn,
-            ...data
-        }));
-
-        await new Promise(resolve => setTimeout(resolve, minutes * 60 * 1000));
     }
+
+    lastEarn = data.balanceCoins - lastBalance;
+    lastBalance = data.balanceCoins;
+
+    ctx.replyWithMarkdown(formatMessage({
+        lastEarn,
+        ...data
+    }));
 };

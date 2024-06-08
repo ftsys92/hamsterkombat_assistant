@@ -11,7 +11,15 @@ bot.start(async (ctx) => {
     }
 
     ctx.reply('Welcome!');
-    await runFarm(ctx);
+
+    setInterval(async () => {
+        try {
+            await runFarm(ctx);
+        } catch (e) {
+            console.error(e)
+        }
+    })
+
     started = true;
 });
 
