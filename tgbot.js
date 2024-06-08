@@ -2,7 +2,9 @@ import { Telegraf } from 'telegraf';
 import { message } from 'telegraf/filters';
 import { runFarm } from './bot.js'
 
-const bot = new Telegraf(process.env.TELEGARM_BOT_TOKEN)
+const bot = new Telegraf(process.env.TELEGARM_BOT_TOKEN);
+const minutes = process.env.FARM_INTERVAL_MINUTES;
+
 let started = false;
 bot.start(async (ctx) => {
     if (started) {
@@ -12,13 +14,15 @@ bot.start(async (ctx) => {
 
     ctx.reply('Welcome!');
 
+    await runFarm(ctx);
+
     setInterval(async () => {
         try {
             await runFarm(ctx);
         } catch (e) {
             console.error(e)
         }
-    })
+    }, minutes * 60 * 1000);
 
     started = true;
 });
