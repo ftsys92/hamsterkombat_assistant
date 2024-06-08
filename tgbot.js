@@ -27,7 +27,7 @@ bot.start(async (ctx) => {
     started = true;
 });
 
-bot.launch()
+bot.launch({dropPendingUpdates: true}, () => console.log('Bot started'))
 bot.catch((error) => {
     console.log(error)
 })
