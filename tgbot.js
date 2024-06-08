@@ -16,7 +16,9 @@ bot.start(async (ctx) => {
 });
 
 bot.launch()
-
+bot.catch((error) => {
+    console.log(error)
+})
 // Enable graceful stop
 process.once('SIGINT', () => bot.stop('SIGINT'))
 process.once('SIGTERM', () => bot.stop('SIGTERM'))

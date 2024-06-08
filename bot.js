@@ -32,7 +32,7 @@ const auth = async () => {
 
         authToken = response.data.authToken;
     } catch (error) {
-        console.log('AUTH ERROR');
+        console.log('AUTH ERROR', error?.response);
         process.exit(error?.response?.status || 401);
     }
 }
@@ -115,7 +115,7 @@ const boostsForBuy = async () => {
 
 const buyBust = async (ctx) => {
     try {
-        const response = await axios.post('https://api.hamsterkombat.io/clicker/buy-boost', {
+        await axios.post('https://api.hamsterkombat.io/clicker/buy-boost', {
             "boostId": "BoostFullAvailableTaps",
             "timestamp": Date.now(),
         }, {
@@ -124,19 +124,6 @@ const buyBust = async (ctx) => {
             }
         });
         ctx.sendMessage('Boost bought');
-
-        const { balanceCoins, availableTaps, lastPassiveEarn, earnPassivePerSec, boosts, lastSyncUpdate, tapsRecoverPerSec } = response.data.clickerUser;
-
-        return {
-            balanceCoins,
-            lastPassiveEarn,
-            availableTaps,
-            [`tapsRecoverPer${minutes}Minute`]: tapsRecoverPerSec * minutes * 60,
-            [`earnPassivePer${minutes}Minute`]: earnPassivePerSec * minutes * 60,
-            lastSyncUpdate: dayjs.unix(lastSyncUpdate).format('MM/DD/YYYY HH:mm'),
-            boost: boosts.BoostFullAvailableTaps,
-        };
-
     } catch (error) {
         console.log('BUYBUST ERROR');
         console.error(error?.message || error?.response?.status || 'BUYBUST ERROR')
@@ -182,6 +169,42 @@ const claimDailyReward = async (ctx) => {
     }
 }
 
+const getConfig = async () => {
+    return await axios.post("https://api.hamsterkombat.io/clicker/config", null, {
+        headers: {
+            Authorization: `Bearer ${authToken}`
+        }
+    })
+}
+
+const decodeCipher = (cipher) => {
+    const t = `${cipher.slice(0, 3)}${cipher.slice(4)}`;
+    return atob(t)
+}
+
+let morseIsClaimed = false;
+const claimMorse = async (ctx) => {
+    const { data } = await getConfig();
+    morseIsClaimed = !!data?.dailyCipher?.isClaimed;
+
+    if (morseIsClaimed || !data?.dailyCipher || !data?.dailyCipher?.cipher) {
+        ctx.sendMessage('Daily cipher already claimed or feature is not available.');
+        return;
+    }
+
+    const cipherDecoded = decodeCipher(data.dailyCipher.cipher);
+
+    await axios.post("https://api.hamsterkombat.io/clicker/claim-daily-cipher", {
+        cipher: cipherDecoded
+    }, {
+        headers: {
+            Authorization: `Bearer ${authToken}`
+        }
+    });
+
+    ctx.sendMessage(`Daily cipher: "${cipherDecoded}" has been claimed.`);
+}
+
 function formatMessage(data) {
     console.log(data);
     const formattedMessage = `
@@ -203,34 +226,16 @@ export const runFarm = async (ctx) => {
     let data = await sync();
     let lastBalance = data.balanceCoins;
 
-    await checkDailyReward(ctx);
-
-    data = await tap(data[`tapsRecoverPer${minutes}Minute`], data.availableTaps);
-
-    const boost = await boostsForBuy();
-
-    if (boost && boost.cooldownSeconds <= 0 &&
-        (
-            data.boost.level < boost.maxLevel ||
-            (data.boost.level === boost.maxLevel && 1 === boost.level)
-        )
-    ) {
-        data = await buyBust(ctx);
-        data = await tap(data[`tapsRecoverPer${minutes}Minute`], data.availableTaps);
-    }
-
     let lastEarn = data.balanceCoins - lastBalance;
     lastBalance = data.balanceCoins;
 
     ctx.sendMessage('Sync success');
-    ctx.replyWithMarkdown(formatMessage({
-        lastEarn,
-        ...data
-    }));
 
-    setInterval(async () => {
+    while (true) {
         console.clear();
+        console.log(dayjs().format('MM/DD/YYYY HH:mm'));
 
+        await claimMorse(ctx);
         await checkDailyReward(ctx);
 
         data = await tap(data[`tapsRecoverPer${minutes}Minute`], data.availableTaps);
@@ -238,13 +243,13 @@ export const runFarm = async (ctx) => {
         const boost = await boostsForBuy();
 
         if (boost && boost.cooldownSeconds <= 0 &&
-        (
-            data.boost.level < boost.maxLevel ||
-            (data.boost.level === boost.maxLevel && 1 === boost.level)
-        )
-    ) {
-            data = await buyBust(ctx);
-            data = await tap(data.availableTaps, data.availableTaps);
+            (
+                data.boost.level < boost.maxLevel ||
+                (data.boost.level === boost.maxLevel && 1 === boost.level)
+            )
+        ) {
+            await buyBust(ctx);
+            data = await tap(data[`tapsRecoverPer${minutes}Minute`], data.availableTaps);
         }
 
         lastEarn = data.balanceCoins - lastBalance;
@@ -254,5 +259,7 @@ export const runFarm = async (ctx) => {
             lastEarn,
             ...data
         }));
-    }, minutes * 60 * 1000);
+
+        await new Promise(resolve => setTimeout(resolve, minutes * 60 * 1000));
+    }
 };
