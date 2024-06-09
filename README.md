@@ -4,6 +4,8 @@
 
 Copy `config.json.example` to `config.json` and set your settings there.
 
+NOTE: chat id in config will be set automaticaly once you start you telegram bot, e.g. "/start" command. 
+
 Run next commands to run app.
 
 ```bash
