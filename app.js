@@ -1,36 +1,53 @@
 import { Telegraf } from 'telegraf';
-import { message } from 'telegraf/filters';
 import { runFarm } from './bot.js'
+import { readFileSync, writeFileSync } from 'fs';
+const config = JSON.parse(readFileSync('./config.json'));
 
-const bot = new Telegraf(process.env.TELEGARM_BOT_TOKEN);
-const minutes = process.env.FARM_INTERVAL_MINUTES;
+const bot = new Telegraf(config.tg_bot_key);
+const minutes = config.farm_interval_minutes;
 
-let started = false;
 bot.start(async (ctx) => {
-    if (started) {
+    if (config.chat_id) {
         ctx.reply('Already started!');
         return;
     }
 
     ctx.reply('Welcome!');
 
-    await runFarm(ctx);
+    config.chat_id = ctx.chat.id;
 
-    setInterval(async () => {
-        try {
-            await runFarm(ctx);
-        } catch (e) {
-            console.error(e)
-        }
-    }, minutes * 60 * 1000);
-
-    started = true;
+    writeFileSync('./config.json', JSON.stringify(config));
 });
 
-bot.launch({dropPendingUpdates: true}, () => console.log('Bot started'))
-bot.catch((error) => {
-    console.log(error)
-})
+// For each account run farming.
+const run = () => {
+    config.accounts.forEach(async (account) => {
+        await bot.telegram.sendMessage(config.chat_id, `${account.name} is starting!`);
+
+        await runFarm(account, config.chat_id, bot);
+
+        setInterval(async () => {
+            await runFarm(account, config.chat_id, bot);
+        }, minutes * 60 * 1000);
+    });
+}
+
+if (!config.chat_id) {
+    console.log('Waiting chat id to start');
+    const checkInterval = setInterval(() => {
+        console.log('Waiting chat id to start');
+
+        if (config.chat_id) {
+            run();
+            clearInterval(checkInterval);
+        }
+    }, 30 * 1000) // Checking every 30 sec if bot is not started on user end.
+} else {
+    run();
+}
+
+bot.launch({ dropPendingUpdates: true }, () => console.log('Bot started'));
+
 // Enable graceful stop
 process.once('SIGINT', () => bot.stop('SIGINT'))
 process.once('SIGTERM', () => bot.stop('SIGTERM'))

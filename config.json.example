@@ -1,0 +1,19 @@
+{
+    "tg_bot_key": "",
+    "chat_id": "set your chat id or it will be auto set after you start your bot in telegram",
+    "farm_interval_minutes": 30,
+    "accounts": [
+        {
+            "name": "account1",
+            "credentials": {
+                "query": ""
+            }
+        },
+        {
+            "name": "account2",
+            "credentials": {
+                "query": ""
+            }
+        }
+    ]
+}

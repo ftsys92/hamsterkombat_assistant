@@ -2,174 +2,125 @@ import axios from "axios";
 import dayjs from "dayjs";
 import duration from "dayjs/plugin/duration.js";
 import relativeTime from "dayjs/plugin/relativeTime.js";
+import { readFileSync } from 'fs';
 
 dayjs.extend(duration);
-dayjs.extend(relativeTime)
+dayjs.extend(relativeTime);
 
-import { configDotenv } from "dotenv";
-configDotenv({ path: '.env' });
+const config = JSON.parse(readFileSync('./config.json'));
+const minutes = config.farm_interval_minutes;
 
-const initDataRaw = process.env.HAMSTER_BOT_INIT_DATA_RAW;
-const minutes = process.env.FARM_INTERVAL_MINUTES;
+const auth = async (account) => {
+    const body = {
+        initDataRaw: account.credentials.query,
+    }
+    const response = await axios.post('https://api.hamsterkombat.io/auth/auth-by-telegram-webapp', {
+        ...body
+    });
 
-let authToken = '';
-let authAttempts = 0;
+    return response.data.authToken;
+}
 
-const auth = async () => {
-    if (authAttempts > 3) {
-        process.exit(401);
+const tap = async (authToken, count, availableCount) => {
+    if (availableCount > count) {
+        count = availableCount;
     }
 
-    authAttempts++;
-
-    try {
-        const body = {
-            initDataRaw,
+    const timestamp = Date.now();
+    const response = await axios.post('https://api.hamsterkombat.io/clicker/tap', {
+        "count": count,
+        "availableTaps": availableCount,
+        "timestamp": timestamp
+    }, {
+        headers: {
+            Authorization: `Bearer ${authToken}`
         }
-        const response = await axios.post('https://api.hamsterkombat.io/auth/auth-by-telegram-webapp', {
-            ...body
-        });
+    });
 
-        authToken = response.data.authToken;
-    } catch (error) {
-        console.log('AUTH ERROR', error?.response);
-        process.exit(error?.response?.status || 401);
-    }
+    const { balanceCoins, availableTaps, lastPassiveEarn, earnPassivePerSec, boosts, lastSyncUpdate, tapsRecoverPerSec } = response.data.clickerUser;
+
+    return {
+        balanceCoins,
+        lastPassiveEarn,
+        availableTaps,
+        [`tapsRecoverPer${minutes}Minute`]: tapsRecoverPerSec * minutes * 60,
+        [`earnPassivePer${minutes}Minute`]: earnPassivePerSec * minutes * 60,
+        lastSyncUpdate: dayjs.unix(lastSyncUpdate).format('MM/DD/YYYY HH:mm'),
+        boost: boosts.BoostFullAvailableTaps,
+    };
 }
 
-const tap = async (count, availableCount) => {
-    try {
-        if (availableCount > count) {
-            count = availableCount;
+const sync = async (authToken) => {
+    const response = await axios.post('https://api.hamsterkombat.io/clicker/sync', null, {
+        headers: {
+            Authorization: `Bearer ${authToken}`
         }
+    });
 
-        const timestamp = Date.now();
-        const response = await axios.post('https://api.hamsterkombat.io/clicker/tap', {
-            "count": count,
-            "availableTaps": availableCount,
-            "timestamp": timestamp
-        }, {
-            headers: {
-                Authorization: `Bearer ${authToken}`
-            }
-        });
+    const { balanceCoins, availableTaps, lastPassiveEarn, earnPassivePerSec, boosts, lastSyncUpdate, tapsRecoverPerSec } = response.data.clickerUser;
 
-        const { balanceCoins, availableTaps, lastPassiveEarn, earnPassivePerSec, boosts, lastSyncUpdate, tapsRecoverPerSec } = response.data.clickerUser;
-
-        return {
-            balanceCoins,
-            lastPassiveEarn,
-            availableTaps,
-            [`tapsRecoverPer${minutes}Minute`]: tapsRecoverPerSec * minutes * 60,
-            [`earnPassivePer${minutes}Minute`]: earnPassivePerSec * minutes * 60,
-            lastSyncUpdate: dayjs.unix(lastSyncUpdate).format('MM/DD/YYYY HH:mm'),
-            boost: boosts.BoostFullAvailableTaps,
-        };
-    } catch (error) {
-        console.log(error?.response?.data || error?.response?.status);
-        process.exit(error?.response?.status || 401);
-    }
+    return {
+        balanceCoins,
+        lastPassiveEarn,
+        availableTaps,
+        [`tapsRecoverPer${minutes}Minute`]: tapsRecoverPerSec * minutes * 60,
+        [`earnPassivePer${minutes}Minute`]: earnPassivePerSec * minutes * 60,
+        lastSyncUpdate: dayjs.unix(lastSyncUpdate).format('MM/DD/YYYY HH:mm'),
+        boost: boosts.BoostFullAvailableTaps,
+    };
 }
 
-const sync = async () => {
-    try {
-        const response = await axios.post('https://api.hamsterkombat.io/clicker/sync', null, {
-            headers: {
-                Authorization: `Bearer ${authToken}`
-            }
-        });
-
-        const { balanceCoins, availableTaps, lastPassiveEarn, earnPassivePerSec, boosts, lastSyncUpdate, tapsRecoverPerSec } = response.data.clickerUser;
-
-        return {
-            balanceCoins,
-            lastPassiveEarn,
-            availableTaps,
-            [`tapsRecoverPer${minutes}Minute`]: tapsRecoverPerSec * minutes * 60,
-            [`earnPassivePer${minutes}Minute`]: earnPassivePerSec * minutes * 60,
-            lastSyncUpdate: dayjs.unix(lastSyncUpdate).format('MM/DD/YYYY HH:mm'),
-            boost: boosts.BoostFullAvailableTaps,
-        };
-    } catch (error) {
-        console.log('SYNC ERROR');
-        console.error(error?.response?.status)
-    }
-}
-
-const boostsForBuy = async () => {
-    try {
-        const response = await axios.post('https://api.hamsterkombat.io/clicker/boosts-for-buy', null, {
-            headers: {
-                Authorization: `Bearer ${authToken}`
-            }
-        });
-
-        const { boostsForBuy } = response.data
-
-        return boostsForBuy.find((boost) => boost.id === 'BoostFullAvailableTaps');
-    } catch (error) {
-        console.log('BOOSTSFORBUY ERROR');
-        console.error(error?.response?.status || 'BOOSTSFORBUY ERROR')
-    }
-}
-
-const buyBust = async (ctx) => {
-    try {
-        await axios.post('https://api.hamsterkombat.io/clicker/buy-boost', {
-            "boostId": "BoostFullAvailableTaps",
-            "timestamp": Date.now(),
-        }, {
-            headers: {
-                Authorization: `Bearer ${authToken}`
-            }
-        });
-        ctx.sendMessage('Boost bought');
-    } catch (error) {
-        console.log('BUYBUST ERROR');
-        console.error(error?.message || error?.response?.status || 'BUYBUST ERROR')
-    }
-}
-
-const checkDailyReward = async (ctx) => {
-    try {
-        const response = await axios.post('https://api.hamsterkombat.io/clicker/list-tasks', null, {
-            headers: {
-                Authorization: `Bearer ${authToken}`
-            }
-        });
-
-        const { tasks } = response.data
-        const streakDays = tasks.find((t) => t.id === 'streak_days');
-
-        if (false === streakDays?.isCompleted) {
-            await claimDailyReward(ctx);
-
-            ctx.sendMessage('Daily Reward is claimed');
+const boostsForBuy = async (authToken) => {
+    const response = await axios.post('https://api.hamsterkombat.io/clicker/boosts-for-buy', null, {
+        headers: {
+            Authorization: `Bearer ${authToken}`
         }
-    } catch (error) {
-        const message = `Daily Reward ERROR: ${error?.message || error?.response?.status || 'N/A'}`
-        console.error(message);
-        ctx.sendMessage(message);
-    }
+    });
+
+    const { boostsForBuy } = response.data
+
+    return boostsForBuy.find((boost) => boost.id === 'BoostFullAvailableTaps');
 }
 
-const claimDailyReward = async (ctx) => {
-    try {
-        await axios.post('https://api.hamsterkombat.io/clicker/check-task', {
-            "taskId": "streak_days"
-        }, {
-            headers: {
-                Authorization: `Bearer ${authToken}`
-            }
-        });
-    } catch (error) {
-        const message = `Daily Reward ERROR: ${error?.message || error?.response?.status || 'N/A'}`
-        console.error(message);
-        ctx.sendMessage(message);
-    }
+const buyBust = async (authToken) => {
+    await axios.post('https://api.hamsterkombat.io/clicker/buy-boost', {
+        "boostId": "BoostFullAvailableTaps",
+        "timestamp": Date.now(),
+    }, {
+        headers: {
+            Authorization: `Bearer ${authToken}`
+        }
+    });
 }
 
-const getConfig = async () => {
+const checkDailyReward = async (authToken) => {
+    const response = await axios.post('https://api.hamsterkombat.io/clicker/list-tasks', null, {
+        headers: {
+            Authorization: `Bearer ${authToken}`
+        }
+    });
+
+    const { tasks } = response.data
+    const streakDays = tasks.find((t) => t.id === 'streak_days');
+
+    if (false === streakDays?.isCompleted) {
+        await claimDailyReward(authToken);
+    }
+
+    return true;
+}
+
+const claimDailyReward = async (authToken) => {
+    await axios.post('https://api.hamsterkombat.io/clicker/check-task', {
+        "taskId": "streak_days"
+    }, {
+        headers: {
+            Authorization: `Bearer ${authToken}`
+        }
+    });
+}
+
+const getConfig = async (authToken) => {
     return await axios.post("https://api.hamsterkombat.io/clicker/config", null, {
         headers: {
             Authorization: `Bearer ${authToken}`
@@ -182,17 +133,13 @@ const decodeCipher = (cipher) => {
     return atob(t)
 }
 
-let morseIsClaimed = false;
-const claimMorse = async (ctx) => {
-    const { data } = await getConfig();
-    morseIsClaimed = !!data?.dailyCipher?.isClaimed;
-
-    if (morseIsClaimed || !data?.dailyCipher || !data?.dailyCipher?.cipher) {
-        ctx.sendMessage('Daily cipher already claimed or feature is not available.');
-        return;
-    }
-
+const claimMorse = async (authToken) => {
+    const { data } = await getConfig(authToken);
     const cipherDecoded = decodeCipher(data.dailyCipher.cipher);
+
+    if (data.dailyCipher.isClaimed) {
+        return cipherDecoded;
+    }
 
     await axios.post("https://api.hamsterkombat.io/clicker/claim-daily-cipher", {
         cipher: cipherDecoded
@@ -202,44 +149,47 @@ const claimMorse = async (ctx) => {
         }
     });
 
-    ctx.sendMessage(`Daily cipher: "${cipherDecoded}" has been claimed.`);
+    return cipherDecoded;
 }
 
-function formatMessage(data) {
+function formatMessage(data, account) {
     console.log(data);
     const formattedMessage = `
+*Account:* ${account.name}
 *Last Earned:* ${data?.lastEarn || 'N/A'}
 *Balance Coins:* ${data.balanceCoins}
-*Last Passive Earn:* ${data.lastPassiveEarn}
 *Passive Earnings per ${dayjs.duration(minutes, 'minutes').humanize()}:* ${data[`earnPassivePer${minutes}Minute`]}
 *Taps Earnings per ${dayjs.duration(minutes, 'minutes').humanize()}:* ${data[`tapsRecoverPer${minutes}Minute`]}
-*Last Sync Update:* ${data.lastSyncUpdate}
 *Current Boost Level:* ${data.boost.level}
+*Cipher Claimed*: ${data.dailyCipher || 'N/A'}
+*Daily Reward Claimed*: ${data.dailyRewardResult ? 'Yes' : 'No'}
+*Last Sync Update:* ${data.lastSyncUpdate}
     `;
     return formattedMessage;
 }
 
-export const runFarm = async (ctx) => {
+export const runFarm = async (account, chatId, tgBot) => {
     console.clear();
     console.log(dayjs().format('MM/DD/YYYY HH:mm'));
 
-    await auth();
-    ctx.sendMessage('Auth success.')
+    const authToken = await auth(account);
 
-    let data = await sync();
+    let data = await sync(authToken);
     let lastBalance = data.balanceCoins;
 
     let lastEarn = data.balanceCoins - lastBalance;
     lastBalance = data.balanceCoins;
 
-    ctx.sendMessage('Sync success');
+    // Morse
+    const morseResult = await claimMorse(authToken);
 
-    await claimMorse(ctx);
-    await checkDailyReward(ctx);
+    // DailyReward
+    const dailyRewardResult = await checkDailyReward(authToken);
 
-    data = await tap(data[`tapsRecoverPer${minutes}Minute`], data.availableTaps);
+    // Taps and boosts
+    data = await tap(authToken, data[`tapsRecoverPer${minutes}Minute`], data.availableTaps);
 
-    const boost = await boostsForBuy();
+    const boost = await boostsForBuy(authToken);
 
     if (boost && boost.cooldownSeconds <= 0 &&
         (
@@ -247,15 +197,17 @@ export const runFarm = async (ctx) => {
             (data.boost.level === boost.maxLevel && 1 === boost.level)
         )
     ) {
-        await buyBust(ctx);
-        data = await tap(data[`tapsRecoverPer${minutes}Minute`], data.availableTaps);
+        await buyBust(authToken);
+        data = await tap(authToken, data[`tapsRecoverPer${minutes}Minute`], data.availableTaps);
     }
 
     lastEarn = data.balanceCoins - lastBalance;
     lastBalance = data.balanceCoins;
 
-    ctx.replyWithMarkdown(formatMessage({
+    await tgBot.telegram.sendMessage(chatId, formatMessage({
         lastEarn,
+        dailyCipher: morseResult,
+        dailyRewardResult,
         ...data
-    }));
+    }, account), { parse_mode: 'Markdown' });
 };

@@ -5,8 +5,11 @@
   "main": "bot.js",
   "type": "module",
   "scripts": {
-    "start": "pm2 start app.js --exp-backoff-restart-delay=100 --restart-delay=3000",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "pm2 start app.js --restart-delay=30000",
+    "restart": "pm2 restart app.js --restart-delay=30000",
+    "stop": "pm2 stop app.js",
+    "logs": "pm2 logs",
+    "monit": "pm2 monit"
   },
   "author": "",
   "license": "ISC",
