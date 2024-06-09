@@ -27,13 +27,15 @@ const run = () => {
         try {
             await runFarm(account, config.chat_id, bot);
         } catch (e) {
-           process.exit(1);
+            await bot.telegram.sendMessage(config.chat_id, `${account.name} failed. Restarting all accounts...`);
+            process.exit(1);
         }
 
         setInterval(async () => {
             try {
                 await runFarm(account, config.chat_id, bot);
             } catch (e) {
+                await bot.telegram.sendMessage(config.chat_id, `${account.name} failed. Restarting all accounts...`);
                 process.exit(1);
             }
         }, minutes * 60 * 1000);
