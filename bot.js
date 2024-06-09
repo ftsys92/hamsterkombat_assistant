@@ -160,7 +160,7 @@ function formatMessage(data, account) {
 *Balance Coins:* ${data.balanceCoins}
 *Passive Earnings per ${dayjs.duration(minutes, 'minutes').humanize()}:* ${data[`earnPassivePer${minutes}Minute`]}
 *Taps Earnings per ${dayjs.duration(minutes, 'minutes').humanize()}:* ${data[`tapsRecoverPer${minutes}Minute`]}
-*Current Boost Level:* ${data.boost.level}
+*Current Boost Level:* ${data?.boost?.level || 0}
 *Cipher Claimed*: ${data.dailyCipher || 'N/A'}
 *Daily Reward Claimed*: ${data.dailyRewardResult ? 'Yes' : 'No'}
 *Last Sync Update:* ${data.lastSyncUpdate}
@@ -190,9 +190,9 @@ export const runFarm = async (account, chatId, tgBot) => {
     data = await tap(authToken, data[`tapsRecoverPer${minutes}Minute`], data.availableTaps);
 
     const boost = await boostsForBuy(authToken);
-
     if (boost && boost.cooldownSeconds <= 0 &&
         (
+            !data?.boost?.level ||
             data.boost.level < boost.maxLevel ||
             (data.boost.level === boost.maxLevel && 1 === boost.level)
         )
