@@ -26,8 +26,17 @@ const run = () => {
 
         await runFarm(account, config.chat_id, bot);
 
-        setInterval(async () => {
-            await runFarm(account, config.chat_id, bot);
+        const farmInterval = setInterval(async () => {
+            try {
+                await runFarm(account, config.chat_id, bot);
+            } catch (e) {
+                clearInterval(farmInterval);
+
+                // If error restart after 30 sec
+                await new Promise(resolve => setTimeout(resolve, 30000));
+
+                run();
+            }
         }, minutes * 60 * 1000);
     });
 }
