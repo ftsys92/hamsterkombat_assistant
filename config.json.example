@@ -1,6 +1,6 @@
 {
     "tg_bot_key": "",
-    "chat_id": "set your chat id or it will be auto set after you start your bot in telegram",
+    "chat_id": "",
     "farm_interval_minutes": 30,
     "accounts": [
         {
