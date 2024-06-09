@@ -27,7 +27,10 @@ const run = () => {
         try {
             await runFarm(account, config.chat_id, bot);
         } catch (e) {
-            await bot.telegram.sendMessage(config.chat_id, `${account.name} failed. Restarting all accounts...`);
+            const errorMsg = e.message || e?.response?.message || 'Something wrong'
+            console.error(`${account.name} failed with error "${errorMsg}"`);
+
+            await bot.telegram.sendMessage(config.chat_id, `${account.name} failed with error "${errorMsg}". Restarting all accounts...`);
             process.exit(1);
         }
 
@@ -35,7 +38,10 @@ const run = () => {
             try {
                 await runFarm(account, config.chat_id, bot);
             } catch (e) {
-                await bot.telegram.sendMessage(config.chat_id, `${account.name} failed. Restarting all accounts...`);
+                const errorMsg = e.message || e?.response?.message || 'Something wrong'
+                console.error(`${account.name} failed with error "${errorMsg}"`);
+
+                await bot.telegram.sendMessage(config.chat_id, `${account.name} failed with error "${errorMsg}". Restarting all accounts...`);
                 process.exit(1);
             }
         }, minutes * 60 * 1000);
