@@ -24,18 +24,17 @@ const run = () => {
     config.accounts.forEach(async (account) => {
         await bot.telegram.sendMessage(config.chat_id, `${account.name} is starting!`);
 
-        await runFarm(account, config.chat_id, bot);
+        try {
+            await runFarm(account, config.chat_id, bot);
+        } catch (e) {
+           process.exit(1);
+        }
 
-        const farmInterval = setInterval(async () => {
+        setInterval(async () => {
             try {
                 await runFarm(account, config.chat_id, bot);
             } catch (e) {
-                clearInterval(farmInterval);
-
-                // If error restart after 30 sec
-                await new Promise(resolve => setTimeout(resolve, 30000));
-
-                run();
+                process.exit(1);
             }
         }, minutes * 60 * 1000);
     });
@@ -50,7 +49,7 @@ if (!config.chat_id) {
             run();
             clearInterval(checkInterval);
         }
-    }, 30 * 1000) // Checking every 30 sec if bot is not started on user end.
+    }, 60 * 1000) // Checking every 60 sec if bot is not started on user end.
 } else {
     run();
 }
