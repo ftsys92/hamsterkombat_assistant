@@ -19,31 +19,27 @@ bot.start(async (ctx) => {
     writeFileSync('./config.json', JSON.stringify(config));
 });
 
+const farm = async (account) => {
+    try {
+        await runFarm(account, config.chat_id, bot);
+    } catch (e) {
+        const errorMsg = e.message || e?.response?.message || 'Something wrong'
+        console.error(`${account.name} failed with error "${errorMsg}"`);
+
+        await bot.telegram.sendMessage(config.chat_id, `${account.name} failed with error "${errorMsg}". Restarting all accounts...`);
+        process.exit(1);
+    }
+}
+
 // For each account run farming.
 const run = () => {
     config.accounts.forEach(async (account) => {
         await bot.telegram.sendMessage(config.chat_id, `${account.name} is starting!`);
 
-        try {
-            await runFarm(account, config.chat_id, bot);
-        } catch (e) {
-            const errorMsg = e.message || e?.response?.message || 'Something wrong'
-            console.error(`${account.name} failed with error "${errorMsg}"`);
-
-            await bot.telegram.sendMessage(config.chat_id, `${account.name} failed with error "${errorMsg}". Restarting all accounts...`);
-            process.exit(1);
-        }
+        await farm(account);
 
         setInterval(async () => {
-            try {
-                await runFarm(account, config.chat_id, bot);
-            } catch (e) {
-                const errorMsg = e.message || e?.response?.message || 'Something wrong'
-                console.error(`${account.name} failed with error "${errorMsg}"`);
-
-                await bot.telegram.sendMessage(config.chat_id, `${account.name} failed with error "${errorMsg}". Restarting all accounts...`);
-                process.exit(1);
-            }
+            await farm(account);
         }, minutes * 60 * 1000);
     });
 }

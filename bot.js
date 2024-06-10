@@ -3,7 +3,7 @@ import dayjs from "dayjs";
 import duration from "dayjs/plugin/duration.js";
 import relativeTime from "dayjs/plugin/relativeTime.js";
 import { readFileSync } from 'fs';
-
+import { formatNumberCompact } from './helpers.js';
 dayjs.extend(duration);
 dayjs.extend(relativeTime);
 
@@ -156,10 +156,10 @@ function formatMessage(data, account) {
     console.log(data);
     const formattedMessage = `
 *Account:* ${account.name}
-*Last Earned:* ${data?.lastEarn || 'N/A'}
-*Balance Coins:* ${data.balanceCoins}
-*Passive Earnings per ${dayjs.duration(minutes, 'minutes').humanize()}:* ${data[`earnPassivePer${minutes}Minute`]}
-*Taps Earnings per ${dayjs.duration(minutes, 'minutes').humanize()}:* ${data[`tapsRecoverPer${minutes}Minute`]}
+*Last Earned:* ${formatNumberCompact(data?.lastEarn) || 'N/A'}
+*Balance Coins:* ${formatNumberCompact(data.balanceCoins)}
+*Passive Earnings per ${dayjs.duration(minutes, 'minutes').humanize()}:* ${formatNumberCompact(data[`earnPassivePer${minutes}Minute`])}
+*Taps Earnings per ${dayjs.duration(minutes, 'minutes').humanize()}:* ${formatNumberCompact(data[`tapsRecoverPer${minutes}Minute`])}
 *Current Boost Level:* ${data?.boost?.level || 0}
 *Cipher Claimed*: ${data.dailyCipher || 'N/A'}
 *Daily Reward Claimed*: ${data.dailyRewardResult ? 'Yes' : 'No'}
