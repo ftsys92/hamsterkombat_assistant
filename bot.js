@@ -125,7 +125,7 @@ const getConfig = async (authToken) => {
         headers: {
             Authorization: `Bearer ${authToken}`
         }
-    })
+    });
 }
 
 const decodeCipher = (cipher) => {
@@ -166,6 +166,77 @@ function formatMessage(data, account) {
 *Last Sync Update:* ${data.lastSyncUpdate}
     `;
     return formattedMessage;
+}
+
+const getUpgradesForBuy = async (authToken) => {
+    return await axios.post("https://api.hamsterkombat.io/clicker/upgrades-for-buy", null, {
+        headers: {
+            Authorization: `Bearer ${authToken}`
+        }
+    })
+}
+
+const buyUpgrade = async (authToken, upgradeId) => {
+    return await axios.post("https://api.hamsterkombat.io/clicker/buy-upgrade", {
+        timestamp: Date.now(),
+        upgradeId,
+    }, {
+        headers: {
+            Authorization: `Bearer ${authToken}`
+        }
+    })
+}
+
+const buyUpgrades = async (authToken, balance, account) => {
+    const { data } = await getUpgradesForBuy(authToken);
+    const upgradesForBuy = data.upgradesForBuy || [];
+
+    if (!upgradesForBuy?.length) {
+        return [];
+    }
+
+    let percentFromBalance = Number(account.auto_buy_cards.percent_from_balance) || 0;
+
+    if (percentFromBalance < 0) {
+        percentFromBalance = 0
+    } else if (percentFromBalance > 100) {
+        percentFromBalance = 100;
+    }
+
+    const balanceWithPercentApplied = balance * percentFromBalance / 100;
+
+    const available = upgradesForBuy
+        .filter((u) => !u.isExpired && !u.maxLevel && u.isAvailable && !u.cooldownSeconds)
+        .filter((u) => u.price <= balanceWithPercentApplied)
+        .sort((a, b) => b.profitPerHour - a.profitPerHour);
+
+    const toBuy = [];
+    available.forEach((a) => {
+        const currentPendingToBuyTotalPrice = toBuy.reduce((acc, u) => acc + u.price, 0);
+        // Add card only if all cards price + current card less than balance
+        if (currentPendingToBuyTotalPrice + a.price <= balanceWithPercentApplied) {
+            toBuy.push(a);
+        }
+    });
+
+    for (const upgrade of toBuy) {
+        console.log(`Buying upgrade ${upgrade.section} -> ${upgrade.name} for account: ${account.name}`)
+        await buyUpgrade(authToken, upgrade.id);
+        await new Promise(resolve => setTimeout(resolve, 5000)); // Wait for 5 seconds before next call
+    }
+
+    const currentProfit = upgradesForBuy.reduce((acc, u) => acc + u.currentProfitPerHour, 0)
+    const totalPriceToBuy = toBuy.reduce((acc, u) => acc + u.price, 0)
+    const totalProfitDelta = toBuy.reduce((acc, u) => acc + u.profitPerHourDelta, 0);
+
+    console.log({
+        currentProfit: formatNumberCompact(currentProfit),
+        totalPriceToBuy: formatNumberCompact(totalPriceToBuy),
+        totalProfitDelta: formatNumberCompact(totalProfitDelta),
+        nextProfitPerHout: formatNumberCompact(currentProfit + totalProfitDelta),
+    });
+
+    return toBuy;
 }
 
 export const runFarm = async (account, chatId, tgBot) => {
@@ -210,4 +281,27 @@ export const runFarm = async (account, chatId, tgBot) => {
         dailyRewardResult,
         ...data
     }, account), { parse_mode: 'Markdown' });
+
+    if (account.auto_buy_cards?.enabled) {
+        const cardsBought = await buyUpgrades(authToken, data.balanceCoins, account);
+
+        if (!cardsBought.length) {
+            await tgBot.telegram.sendMessage(
+                chatId,
+                `No cards to buy for account: *${account.name}*`,
+                { parse_mode: 'Markdown' },
+            );
+        } else {
+            const message = cardsBought.reduce(
+                (acc, c) => '' === acc ? `*${c.section} -> ${c.name}*` : `${acc}\n*${c.section} -> ${c.name}*`,
+                '',
+            );
+
+            await tgBot.telegram.sendMessage(
+                chatId,
+                `Cards bought for ${account.name}:\n${message}`,
+                { parse_mode: 'Markdown' },
+            );
+        }
+    }
 };

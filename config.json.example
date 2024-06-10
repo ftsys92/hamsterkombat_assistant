@@ -5,12 +5,20 @@
     "accounts": [
         {
             "name": "account1",
+            "auto_buy_cards": {
+                "enabled": true,
+                "percent_from_balance": 50
+            },
             "credentials": {
                 "query": ""
             }
         },
         {
             "name": "account2",
+            "auto_buy_cards": {
+                "enabled": false,
+                "percent_from_balance": 0
+            },
             "credentials": {
                 "query": ""
             }
