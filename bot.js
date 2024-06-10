@@ -222,7 +222,9 @@ const buyUpgrades = async (authToken, balance, account) => {
     for (const upgrade of toBuy) {
         console.log(`Buying upgrade ${upgrade.section} -> ${upgrade.name} for account: ${account.name}`)
         await buyUpgrade(authToken, upgrade.id);
-        await new Promise(resolve => setTimeout(resolve, 5000)); // Wait for 5 seconds before next call
+
+        // Wait for random between 0 and 10 seconds before next call
+        await new Promise(resolve => setTimeout(resolve, parseInt((Math.random() * 10000).toFixed(0))));
     }
 
     const currentProfit = upgradesForBuy.reduce((acc, u) => acc + u.currentProfitPerHour, 0)
