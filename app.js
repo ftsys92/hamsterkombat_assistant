@@ -16,7 +16,7 @@ bot.start(async (ctx) => {
 
     config.chat_id = ctx.chat.id;
 
-    writeFileSync('./config.json', JSON.stringify(config));
+    writeFileSync('./config.json', JSON.stringify(config, null, 4));
 });
 
 const farm = async (account) => {
