@@ -196,6 +196,7 @@ const buyUpgrades = async (authToken, balance, account) => {
     }
 
     let percentFromBalance = Number(account.auto_buy_cards.percent_from_balance) || 0;
+    let minProfitPerHour = Number(account.auto_buy_cards.min_profit_per_hour) || 0;
 
     if (percentFromBalance < 0) {
         percentFromBalance = 0
@@ -203,10 +204,15 @@ const buyUpgrades = async (authToken, balance, account) => {
         percentFromBalance = 100;
     }
 
+    if (minProfitPerHour < 0) {
+        minProfitPerHour = 0
+    }
+
     const balanceWithPercentApplied = balance * percentFromBalance / 100;
 
     const available = upgradesForBuy
         .filter((u) => !u.isExpired && !u.maxLevel && u.isAvailable && !u.cooldownSeconds)
+        .filter((u) => u.profitPerHour >= minProfitPerHour)
         .filter((u) => u.price <= balanceWithPercentApplied)
         .sort((a, b) => b.profitPerHour - a.profitPerHour);
 
@@ -295,7 +301,7 @@ export const runFarm = async (account, chatId, tgBot) => {
             );
         } else {
             const message = cardsBought.reduce(
-                (acc, c) => '' === acc ? `*${c.section} -> ${c.name}*` : `${acc}\n*${c.section} -> ${c.name}*`,
+                (acc, c) => '' === acc ? `*${c.section} -> ${c.name}: $${formatNumberCompact(c.price)} / ${formatNumberCompact(c.profitPerHour)} per hour*` : `${acc}\n*${c.section} -> ${c.name}: $${formatNumberCompact(c.price)} / ${formatNumberCompact(c.profitPerHour)}  per hour*`,
                 '',
             );
 
